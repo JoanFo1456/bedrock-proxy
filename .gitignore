@@ -1,0 +1,16 @@
+# Build output
+bedrock-proxy
+bedrock-proxy-linux
+*.exe
+
+# Runtime files (identity.key is a private key)
+config.json
+identity.key
+server/
+*.log
+
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
