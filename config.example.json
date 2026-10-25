@@ -3,9 +3,9 @@
   "public_transport": "raknet",
   "backend_transport": "nethernet",
   "server_dir": ".",
-  "server_command": ["./bedrock_server"],
+  "server_command": ["{executable}"],
   "stop_command": "stop",
-  "backend_port": 19140,
+  "backend_port": "{backend_port}",
   "properties": {
     "server-port": "{port}",
     "online-mode": "false",
@@ -13,6 +13,6 @@
     "enable-lan-visibility": "false",
     "transport": "nethernet"
   },
-  "motd": "My Server",
-  "max_players": 10
+  "motd": "{servername}",
+  "max_players": "{max_players}"
 }
