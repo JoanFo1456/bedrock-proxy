@@ -22,6 +22,9 @@ func (t debugTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 		t.log.Debug("backend signaling request failed", "method", r.Method, "url", r.URL.String(), "err", err)
 		return nil, err
 	}
+	if r.Method == http.MethodPost {
+		recordOffer(r.URL.String(), string(req))
+	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	resp.Body = io.NopCloser(bytes.NewReader(body))
