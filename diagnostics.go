@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -53,4 +54,46 @@ func logNetDiagnostics(log *slog.Logger) {
 		}
 		log.Debug("diagnostics: open sockets", "kind", f.kind, "sockets", strings.Join(socks, " "))
 	}
+}
+
+// logHostDiagnostics records facts about the machine and container sandbox. A server that cannot open the
+// UDP sockets NetherNet needs is usually limited by the host (kernel, CPU emulation, a sandboxed runtime).
+func logHostDiagnostics(log *slog.Logger) {
+	log.Debug("diagnostics: host", "goos", runtime.GOOS, "goarch", runtime.GOARCH, "cpus", runtime.NumCPU())
+	one := func(path string) string {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "unreadable"
+		}
+		return strings.Join(strings.Fields(string(b)), " ")
+	}
+	grep := func(path string, prefixes ...string) string {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "unreadable"
+		}
+		var out []string
+		seen := map[string]bool{}
+		for _, line := range strings.Split(string(b), "\n") {
+			for _, p := range prefixes {
+				if strings.HasPrefix(line, p) && !seen[p] {
+					seen[p] = true
+					out = append(out, strings.Join(strings.Fields(line), " "))
+					break
+				}
+			}
+		}
+		return strings.Join(out, " | ")
+	}
+	_, dockerenv := os.Stat("/.dockerenv")
+	log.Debug("diagnostics: kernel",
+		"version", one("/proc/version"),
+		"cpu", grep("/proc/cpuinfo", "model name", "Hardware", "Model", "CPU implementer", "vendor_id"),
+		"sandbox", grep("/proc/self/status", "Seccomp", "NoNewPrivs", "CapEff", "CapBnd"),
+		"dockerenv", dockerenv == nil,
+		"cgroup", one("/proc/1/cgroup"))
+	log.Debug("diagnostics: network sysctls",
+		"ip_local_port_range", one("/proc/sys/net/ipv4/ip_local_port_range"),
+		"disable_ipv6", one("/proc/sys/net/ipv6/conf/all/disable_ipv6"),
+		"somaxconn", one("/proc/sys/net/core/somaxconn"))
 }
