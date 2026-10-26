@@ -179,6 +179,9 @@ func handlePlayer(ctx context.Context, client *minecraft.Conn, cfg Config, backe
 	cancel()
 	if err != nil {
 		log.Error("backend dial failed", "err", err)
+		if cfg.Debug {
+			logNetDiagnostics(log)
+		}
 		_ = client.WritePacket(&packet.Disconnect{Message: "Server is unavailable, try again shortly."})
 		return
 	}
