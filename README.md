@@ -10,31 +10,7 @@ Players --RakNet, 1 UDP port--> bedrock-proxy --NetherNet, loopback--> BDS (onli
 
 ## Setup (Pterodactyl / Pelican)
 
-1. Put `bedrock-proxy-linux` next to `bedrock_server` and make it executable (`0755`).
-2. Create `config.json` there:
-
-```json
-{
-  "public_transport": "raknet",
-  "backend_transport": "nethernet",
-  "server_dir": ".",
-  "server_command": ["./bedrock_server"],
-  "backend_port": 19140,
-  "motd": "My Server",
-  "max_players": 10
-}
-```
-
-3. In `server.properties` set `server-port=19140`, `online-mode=false`, `enable-lan-visibility=false`
-   (and `allow-list=false` unless you maintain `allowlist.json`). Keep `transport=nethernet`.
-4. Startup command: `LD_LIBRARY_PATH=. ./bedrock-proxy-linux`
-5. Players join the panel's allocated port.
-
-If the server user may write `server.properties`, you can instead list these under `"properties"` in
-`config.json` and the proxy sets them on every start (`{port}` = backend port).
-
-Other servers: `backend_transport: "raknet"` for PocketMine, Dragonfly, Nukkit and similar.
-`public_transport: "nethernet"` serves players over NetherNet (TCP signaling + WebRTC UDP, same port number).
+On this repository there's an egg for both pelican and pterodactyl. No need to do any other steps.
 
 ## How it works and why it is safe enough
 
