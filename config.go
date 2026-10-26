@@ -12,7 +12,7 @@ import (
 type Config struct {
 	// Host and Port are where players connect: TCP for NetherNet signaling and UDP for WebRTC, both on Port.
 	// A Port of 0 uses the SERVER_PORT environment variable (set by Pterodactyl), then 19132.
-	Host string `json:"host"`
+	Host string  `json:"host"`
 	Port flexInt `json:"port"`
 
 	// ServerDir is the folder the managed server runs in. ServerCommand is the executable and arguments to
@@ -46,7 +46,7 @@ type Config struct {
 
 	// Motd and MaxPlayers are what the server list shows. The proxy does not enforce MaxPlayers on the
 	// backend, which has its own limit.
-	Motd       string `json:"motd"`
+	Motd       string  `json:"motd"`
 	MaxPlayers flexInt `json:"max_players"`
 	// IdentityKeyFile stores the signaling identity key. Keeping it stable across restarts avoids the
 	// "trust this server?" prompt players get when the identity changes.

@@ -158,7 +158,11 @@ func dialBackend(ctx context.Context, cfg Config, backend string, key *ecdsa.Pri
 	if err != nil {
 		return nil, fmt.Errorf("create identity: %w", err)
 	}
-	n := minecraft.NetherNet{Log: log, Signaling: endpoint.NewClient()}
+	signaling := endpoint.NewClient()
+	if cfg.Debug {
+		signaling = endpoint.ClientConfig{HTTPClient: &http.Client{Transport: debugTransport{log: log}}}.New()
+	}
+	n := minecraft.NetherNet{Log: log, Signaling: signaling}
 	n.Dialer.Identity = ident
 	log.Debug("dialing backend", "backend", backend, "identity_domain", ident.Domain, "token_len", len(ident.Token))
 	return d.DialContextNetwork(ctx, n, backend)
