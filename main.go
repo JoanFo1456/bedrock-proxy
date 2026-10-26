@@ -29,7 +29,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	backendPort := cfg.BackendPort
+	backendPort := int(cfg.BackendPort)
 	backend := cfg.BackendAddress
 	if backend == "" {
 		if backendPort == 0 {

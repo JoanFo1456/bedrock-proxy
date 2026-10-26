@@ -55,3 +55,14 @@ Other servers: `backend_transport: "raknet"` for PocketMine, Dragonfly, Nukkit a
 - `BEDROCK_PROXY_INSECURE_TEST_NO_AUTH=1` disables player authentication. For automated tests only.
 
 Credits: NetherNet single-port listener approach from Portal (Apache-2.0).
+
+## Config placeholders (for panel eggs)
+
+Any string in `config.json` may contain `{name}`, which the proxy replaces with the environment variable
+`NAME` (Pterodactyl/Pelican expose egg variables that way). `{name:default}` uses the default when the
+variable is unset or empty; without a default, a missing variable stops startup with a clear message.
+Number fields accept `"10"` as well as `10`. `{port}` is reserved: it is the internal backend port and is
+filled in at launch.
+
+`config.example.json` uses this with the egg variables `EXECUTABLE`, `BACKEND_PORT`, `SERVERNAME` and
+`MAX_PLAYERS`. `config.plain.example.json` is the same config with fixed values and needs no variables.

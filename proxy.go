@@ -103,7 +103,7 @@ func runProxy(ctx context.Context, cfg Config, backend string, log *slog.Logger)
 	// backend runs with online-mode=false and trusts whatever identity the proxy presents.
 	lc := minecraft.ListenConfig{
 		ErrorLog:       log,
-		MaximumPlayers: cfg.MaxPlayers,
+		MaximumPlayers: int(cfg.MaxPlayers),
 		StatusProvider: status{motd: cfg.Motd},
 	}
 	if os.Getenv("BEDROCK_PROXY_INSECURE_TEST_NO_AUTH") == "1" {
