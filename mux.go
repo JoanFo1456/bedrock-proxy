@@ -57,40 +57,44 @@ func (s *muxSession) peer() (netip.AddrPort, time.Time) {
 }
 
 type pendingSession struct {
-	internal netip.AddrPort
-	expires  time.Time
+	advertised netip.AddrPort // the public address the player was told to use
+	from       string         // who asked for it
+	internal   netip.AddrPort
+	expires    time.Time
 }
 
 type udpMux struct {
 	pub *net.UDPConn
 	log *slog.Logger
 
-	mu      sync.Mutex
-	pending map[string]pendingSession // by server ufrag, until the player's first STUN check arrives
-	byAddr  map[netip.AddrPort]*muxSession
-	byUfrag map[string]*muxSession
-	done    chan struct{} // closed when serve returns
+	mu          sync.Mutex
+	pending     map[string]pendingSession // by server ufrag, until the player's first STUN check arrives
+	byAddr      map[netip.AddrPort]*muxSession
+	byUfrag     map[string]*muxSession
+	done        chan struct{}                // closed when serve returns
+	lastUnknown map[netip.AddrPort]time.Time // rate limit for the unknown-session warning
 }
 
 func newUDPMux(pub *net.UDPConn, log *slog.Logger) *udpMux {
 	return &udpMux{
-		pub:     pub,
-		log:     log,
-		pending: map[string]pendingSession{},
-		byAddr:  map[netip.AddrPort]*muxSession{},
-		byUfrag: map[string]*muxSession{},
-		done:    make(chan struct{}),
+		pub:         pub,
+		log:         log,
+		pending:     map[string]pendingSession{},
+		byAddr:      map[netip.AddrPort]*muxSession{},
+		byUfrag:     map[string]*muxSession{},
+		done:        make(chan struct{}),
+		lastUnknown: map[netip.AddrPort]time.Time{},
 	}
 }
 
 // register records that a player with the given server ufrag will arrive for the internal address.
-func (m *udpMux) register(ufrag string, internal netip.AddrPort) error {
+func (m *udpMux) register(ufrag string, internal, advertised netip.AddrPort, from string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if len(m.pending) >= muxMaxPending {
 		return errors.New("too many pending connections")
 	}
-	m.pending[ufrag] = pendingSession{internal: internal, expires: time.Now().Add(muxPendingTTL)}
+	m.pending[ufrag] = pendingSession{internal: internal, advertised: advertised, from: from, expires: time.Now().Add(muxPendingTTL)}
 	return nil
 }
 
@@ -136,7 +140,14 @@ func (m *udpMux) handle(pkt []byte, from netip.AddrPort) {
 	if s == nil {
 		p, ok := m.pending[server]
 		if !ok || time.Now().After(p.expires) {
+			warn := time.Since(m.lastUnknown[key]) > time.Minute
+			if warn {
+				m.lastUnknown[key] = time.Now()
+			}
 			m.mu.Unlock()
+			if warn {
+				m.log.Warn("connectivity check for a session the mux does not know (stale, or the player did not use this server's answer)", "from", key, "username", user)
+			}
 			return
 		}
 		up, err := net.DialUDP("udp", nil, net.UDPAddrFromAddrPort(p.internal))
@@ -188,7 +199,14 @@ func (m *udpMux) janitor() {
 		m.mu.Lock()
 		for u, p := range m.pending {
 			if now.After(p.expires) {
+				m.log.Warn("player signaled but no UDP packet ever arrived: is UDP open on the public port, and is that address right?",
+					"from", p.from, "told_to_send_udp_to", p.advertised)
 				delete(m.pending, u)
+			}
+		}
+		for a, t := range m.lastUnknown {
+			if now.Sub(t) > time.Minute {
+				delete(m.lastUnknown, a)
 			}
 		}
 		for u, s := range m.byUfrag {
@@ -312,7 +330,10 @@ func rewriteAnswer(sdp string, pub netip.AddrPort) string {
 
 // --- signaling proxy --------------------------------------------------------------------------------------
 
-type publicHostKey struct{}
+type joinInfoKey struct{}
+
+// joinInfo is what the signaling proxy remembers about a request between rewriting it and its answer.
+type joinInfo struct{ host, remote string }
 
 // publicAddr works out the address players should send UDP to: the configured public_ip, or the host the
 // player used to reach the signaling endpoint.
@@ -352,7 +373,7 @@ func (m *udpMux) signaling(cfg Config, backend *url.URL, port int) http.Handler 
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(backend)
 			pr.Out.Host = backend.Host
-			pr.Out = pr.Out.WithContext(context.WithValue(pr.Out.Context(), publicHostKey{}, pr.In.Host))
+			pr.Out = pr.Out.WithContext(context.WithValue(pr.Out.Context(), joinInfoKey{}, joinInfo{host: pr.In.Host, remote: pr.In.RemoteAddr}))
 			if isJoin(pr.In) {
 				body, _ := io.ReadAll(io.LimitReader(pr.In.Body, 1<<20))
 				body = []byte(stripCandidates(string(body)))
@@ -374,12 +395,13 @@ func (m *udpMux) signaling(cfg Config, backend *url.URL, port int) http.Handler 
 			if err != nil {
 				return fmt.Errorf("server answer unusable: %w", err)
 			}
-			host, _ := resp.Request.Context().Value(publicHostKey{}).(string)
-			pub, err := publicAddr(cfg, host, port)
+			info, _ := resp.Request.Context().Value(joinInfoKey{}).(joinInfo)
+			pub, err := publicAddr(cfg, info.host, port)
 			if err != nil {
 				return err
 			}
-			if err := m.register(ufrag, internal); err != nil {
+			m.log.Info("player signaling", "from", info.remote, "told_to_send_udp_to", pub, "server_port", internal.Port())
+			if err := m.register(ufrag, internal, pub, info.remote); err != nil {
 				return err
 			}
 			out := []byte(rewriteAnswer(string(body), pub))
