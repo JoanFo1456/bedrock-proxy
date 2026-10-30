@@ -1,0 +1,17 @@
+{
+  "host": "0.0.0.0",
+  "public_transport": "mux",
+  "backend_transport": "nethernet",
+  "server_dir": ".",
+  "server_command": ["{executable}"],
+  "stop_command": "stop",
+  "backend_port": "{backend_port}",
+  "properties": {
+    "server-port": "{port}",
+    "online-mode": "true",
+    "allow-list": "{allow_list:false}",
+    "max-players": "{max_players:10}",
+    "transport": "nethernet",
+    "server-udp-ports": "{udp_ports:19141-19240}"
+  }
+}

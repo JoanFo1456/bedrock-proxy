@@ -66,3 +66,21 @@ func TestFlexInt(t *testing.T) {
 		t.Fatal("want an error for a non-numeric port")
 	}
 }
+
+func TestMuxExampleConfigLoads(t *testing.T) {
+	t.Setenv("EXECUTABLE", "./bedrock_server")
+	t.Setenv("BACKEND_PORT", "19140")
+	t.Setenv("MAX_PLAYERS", "25")
+	cfg, err := loadConfig("config.mux.example.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PublicTransport != "mux" || cfg.BackendPort != 19140 || cfg.ServerCommand[0] != "./bedrock_server" {
+		t.Fatalf("unexpected config: %+v", cfg)
+	}
+	p := cfg.Properties
+	if p["max-players"] != "25" || p["allow-list"] != "false" || p["online-mode"] != "true" ||
+		p["server-udp-ports"] != "19141-19240" || p["server-port"] != "{port}" {
+		t.Fatalf("unexpected properties: %v", p)
+	}
+}

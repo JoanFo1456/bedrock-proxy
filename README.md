@@ -12,6 +12,9 @@ Players --RakNet, 1 UDP port--> bedrock-proxy --NetherNet, loopback--> BDS (onli
 
 On this repository there's an egg for both pelican and pterodactyl. No need to do any other steps.
 
+- `eggs/egg-vanilla-bedrock-proxy.json`: players are authenticated by the proxy and relayed (RakNet in front).
+- `eggs/egg-vanilla-bedrock-mux.json`: mux mode (see below). Players join the server directly through one port.
+
 ## How it works and why it is safe enough
 
 - The proxy authenticates players itself (Xbox login chain) on the public side.

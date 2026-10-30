@@ -1,0 +1,144 @@
+{
+  "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-10-30T20:22:29+00:00",
+  "name": "Vanilla Bedrock (Mux)",
+  "author": "parker@parkervcp.com",
+  "description": "Minecraft Bedrock Dedicated Server behind bedrock-proxy in mux mode. Players connect to the server directly through the single allocated port (TCP and UDP) while the server keeps online-mode on. The server's per-player UDP ports stay inside the container.",
+  "features": [
+    "pid_limit"
+  ],
+  "docker_images": {
+    "ghcr.io/ptero-eggs/yolks:debian": "ghcr.io/ptero-eggs/yolks:debian"
+  },
+  "file_denylist": [],
+  "startup": "./bedrock-proxy-linux",
+  "config": {
+    "files": "{\n    \"server.properties\": {\n        \"parser\": \"properties\",\n        \"find\": {\n            \"server-port\": \"{{server.build.default.port}}\",\n            \"server-name\": \"{{server.build.env.SERVERNAME}}\",\n            \"gamemode\": \"{{server.build.env.GAMEMODE}}\",\n            \"difficulty\": \"{{server.build.env.DIFFICULTY}}\",\n            \"allow-cheats\": \"{{server.build.env.CHEATS}}\"\n        }\n    }\n}",
+    "startup": "{\n    \"done\": \"Server started\"\n}",
+    "logs": "{}",
+    "stop": "stop"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\n# Installs Bedrock Dedicated Server (latest unless BEDROCK_VERSION is set) and the latest bedrock-proxy release (mux config).\n\napt update\napt install -y zip unzip wget curl jq\n\ncd /mnt/server || { echo \"Failed to change directory to /mnt/server\"; exit 1; }\n\n# Default version to latest if not set\nBEDROCK_VERSION=${BEDROCK_VERSION:-latest}\n\n# Filename to use for the downloaded file\nDOWNLOAD_FILE=\"bedrock-server-installer.zip\"\n\n# Minecraft CDN Akamai blocks script user-agents\nRANDVERSION=$((1 + RANDOM % 4000))\nUSER_AGENT=\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.$RANDVERSION.212 Safari/537.36\"\n\nif [ \"${BEDROCK_VERSION}\" == \"latest\" ]; then\n    echo \"Finding latest Bedrock server version\"\n    DOWNLOAD_URL=$(curl --silent --fail -A \"$USER_AGENT\" https://net-secondary.web.minecraft-services.net/api/v1.0/download/links | jq -r '.result.links[] | select(.downloadType == \"serverBedrockLinux\") | .downloadUrl')\n    if [ -z \"${DOWNLOAD_URL}\" ]; then\n        echo \"Failed to retrieve the latest Bedrock server version. Please check your network connection or the Minecraft API.\"\n        exit 1\n    fi\nelse\n    echo \"Downloading ${BEDROCK_VERSION} Bedrock server\"\n    DOWNLOAD_URL=https://www.minecraft.net/bedrockdedicatedserver/bin-linux/bedrock-server-$BEDROCK_VERSION.zip\nfi\n\necho \"Installing: $(basename \"$DOWNLOAD_URL\")\"\necho \"Download URL: $DOWNLOAD_URL\"\n\necho -e \"Backing up config files\"\nmkdir -p /tmp/config_backup\ncp -v server.properties /tmp/config_backup/ 2>/dev/null\ncp -v permissions.json /tmp/config_backup/ 2>/dev/null\ncp -v allowlist.json /tmp/config_backup/ 2>/dev/null\n\necho -e \"Downloading files from: $DOWNLOAD_URL\"\ncurl -fL -A \"$USER_AGENT\" -H \"Accept-Language: en\" -o \"$DOWNLOAD_FILE\" \"$DOWNLOAD_URL\" || { echo \"Bedrock server download failed\"; exit 1; }\n\necho -e \"Unpacking server files\"\nunzip -o \"$DOWNLOAD_FILE\" || { echo \"Unpacking the Bedrock server failed\"; exit 1; }\n\necho -e \"Cleaning up after installing\"\nrm \"$DOWNLOAD_FILE\"\n\necho -e \"Restoring backup config files\"\ncp -rf /tmp/config_backup/* /mnt/server/ 2>/dev/null || { echo \"No files to restore\"; }\n\necho -e \"Downloading the latest bedrock-proxy release\"\ncurl -fL -o bedrock-proxy-linux.tmp https://github.com/JoanFo1456/bedrock-proxy/releases/latest/download/bedrock-proxy-linux-amd64 || {\n    echo \"Could not download the proxy. Check that a release exists at https://github.com/JoanFo1456/bedrock-proxy/releases\"\n    rm -f bedrock-proxy-linux.tmp\n    exit 1\n}\nmv -f bedrock-proxy-linux.tmp bedrock-proxy-linux\n\n# Never overwrite a config the user already has.\nif [ -f config.json ]; then\n    echo \"config.json already exists, keeping it\"\nelse\n    curl -fL -o config.json https://raw.githubusercontent.com/JoanFo1456/bedrock-proxy/main/config.mux.example.json || { echo \"Could not download config.json\"; exit 1; }\nfi\n\nchmod +x bedrock-proxy-linux\nchmod +x bedrock_server\n\necho -e \"Install Completed\"",
+      "container": "ghcr.io/ptero-eggs/installers:debian",
+      "entrypoint": "bash"
+    }
+  },
+  "variables": [
+    {
+      "name": "Allow cheats",
+      "description": "If true then cheats like commands can be used. Allowed values: \"true\" or \"false\"",
+      "env_variable": "CHEATS",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "Bedrock Version",
+      "description": "The version of bedrock. (Ex. 1.7.0.13) Default version is latest.",
+      "env_variable": "BEDROCK_VERSION",
+      "default_value": "latest",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:20",
+      "field_type": "text"
+    },
+    {
+      "name": "Difficulty",
+      "description": "Allowed values: \"peaceful\", \"easy\", \"normal\", or \"hard\"",
+      "env_variable": "DIFFICULTY",
+      "default_value": "easy",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:peaceful,easy,normal,hard",
+      "field_type": "text"
+    },
+    {
+      "name": "Gamemode",
+      "description": "Allowed values: \"survival\", \"creative\", or \"adventure\"",
+      "env_variable": "GAMEMODE",
+      "default_value": "survival",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:survival,creative,adventure",
+      "field_type": "text"
+    },
+    {
+      "name": "Server Name",
+      "description": "The name for the server",
+      "env_variable": "SERVERNAME",
+      "default_value": "Bedrock Dedicated Server",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|max:50",
+      "field_type": "text"
+    },
+    {
+      "name": "ld lib path",
+      "description": "Dumb reasons to need this",
+      "env_variable": "LD_LIBRARY_PATH",
+      "default_value": ".",
+      "user_viewable": false,
+      "user_editable": false,
+      "rules": "required|string|max:20",
+      "field_type": "text"
+    },
+    {
+      "name": "Max Players",
+      "description": "The amount of people that will the server allow to enter.",
+      "env_variable": "MAX_PLAYERS",
+      "default_value": "10",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|integer|min:1",
+      "field_type": "text"
+    },
+    {
+      "name": "Backend Port",
+      "description": "Internal port of the Bedrock server behind the proxy. Must be free inside the container and must NOT be opened to the world.",
+      "env_variable": "BACKEND_PORT",
+      "default_value": "19140",
+      "user_viewable": false,
+      "user_editable": false,
+      "rules": "integer|required",
+      "field_type": "text"
+    },
+    {
+      "name": "Executable",
+      "description": "",
+      "env_variable": "EXECUTABLE",
+      "default_value": "./bedrock_server",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required",
+      "field_type": "text"
+    },
+    {
+      "name": "Allow list",
+      "description": "If true, only players on the server's allowlist can join. Allowed values: true or false",
+      "env_variable": "ALLOW_LIST",
+      "default_value": "false",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|in:true,false",
+      "field_type": "text"
+    },
+    {
+      "name": "Player UDP port window",
+      "description": "Internal UDP ports the server uses, one per connected player (start-end). Never opened to the world; make it at least as wide as your player limit.",
+      "env_variable": "UDP_PORTS",
+      "default_value": "19141-19240",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|string|regex:/^[0-9]{1,5}-[0-9]{1,5}$/",
+      "field_type": "text"
+    }
+  ]
+}
