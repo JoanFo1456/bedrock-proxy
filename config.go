@@ -25,9 +25,12 @@ type Config struct {
 	// StopTimeoutSeconds is how long the server gets to exit after StopCommand before it is killed.
 	StopTimeoutSeconds flexInt `json:"stop_timeout_seconds"`
 
-	// PublicTransport is what players connect with: "raknet" (default, one UDP port) or "nethernet"
-	// (TCP signaling + WebRTC UDP on the same port number).
+	// PublicTransport is what players connect with: "raknet" (default, one UDP port), "nethernet"
+	// (TCP signaling + WebRTC UDP on the same port number) or "mux" (players talk to the server end to end;
+	// the proxy only forwards their packets through one port, see mux.go).
 	PublicTransport string `json:"public_transport"`
+	// PublicIP is the address players send UDP to in "mux" mode. Empty uses the host they connected to.
+	PublicIP string `json:"public_ip"`
 	// BackendTransport is how the proxy talks to the server: "nethernet" (default, what current BDS
 	// needs; the server must run with online-mode=false) or "raknet" (PocketMine, Dragonfly, ...).
 	BackendTransport string `json:"backend_transport"`

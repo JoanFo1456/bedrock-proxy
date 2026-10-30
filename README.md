@@ -42,3 +42,17 @@ filled in at launch.
 
 `config.example.json` uses this with the egg variables `EXECUTABLE`, `BACKEND_PORT`, `SERVERNAME` and
 `MAX_PLAYERS`. `config.plain.example.json` is the same config with fixed values and needs no variables.
+
+## Mux mode (one public port, players connect to the server directly)
+
+`"public_transport": "mux"` does not terminate players at all. BDS opens one UDP port per player; the proxy
+answers the NetherNet signaling for BDS, rewrites the answer so it advertises the single public UDP address,
+and forwards each player's packets to the internal port BDS gave them (recognised by the ICE username in their
+first STUN packet). Players talk to BDS end to end, so **BDS can keep `online-mode=true`** and sees the real
+player, and nothing here depends on RakNet.
+
+- Needs `backend_transport: "nethernet"` and BDS reachable from the proxy (default loopback).
+- BDS needs a UDP port window, e.g. `"server-udp-ports": "19141-19240"` in `properties`: one port per
+  concurrent player. These ports are internal and are never published.
+- `public_ip` is optional. By default players are sent back to the host name or IP they connected with.
+- Only TCP and UDP on the public port need to be open.

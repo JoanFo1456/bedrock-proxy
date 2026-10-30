@@ -27,6 +27,7 @@ import (
 const (
 	transportRakNet    = "raknet"
 	transportNetherNet = "nethernet"
+	transportMux       = "mux"
 )
 
 // netherNetServer owns the HTTP signaling endpoint and the UDP mux backing the single media port.
@@ -91,6 +92,9 @@ func newNetherNet(host string, port int, iceURLs []string, key *ecdsa.PrivateKey
 
 // runProxy accepts players on the public transport and relays each to the backend until ctx is cancelled.
 func runProxy(ctx context.Context, cfg Config, backend string, log *slog.Logger) error {
+	if cfg.PublicTransport == transportMux {
+		return runMux(ctx, cfg, backend, log)
+	}
 	port := cfg.publicPort()
 	addr := net.JoinHostPort(cfg.Host, fmt.Sprint(port))
 
