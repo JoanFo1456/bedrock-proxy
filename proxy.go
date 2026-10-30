@@ -92,6 +92,11 @@ func newNetherNet(host string, port int, iceURLs []string, key *ecdsa.PrivateKey
 
 // runProxy accepts players on the public transport and relays each to the backend until ctx is cancelled.
 func runProxy(ctx context.Context, cfg Config, backend string, log *slog.Logger) error {
+	switch cfg.PublicTransport {
+	case transportRakNet, transportNetherNet, transportMux:
+	default:
+		return fmt.Errorf("public_transport %q is not supported (use %q, %q or %q)", cfg.PublicTransport, transportRakNet, transportNetherNet, transportMux)
+	}
 	if cfg.PublicTransport == transportMux {
 		return runMux(ctx, cfg, backend, log)
 	}
