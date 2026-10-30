@@ -161,6 +161,7 @@ func (m *udpMux) handle(pkt []byte, from netip.AddrPort) {
 		m.byUfrag[server] = s
 		go m.downstream(s)
 		m.log.Info("player connection mapped", "player_addr", key, "server_port", p.internal.Port())
+		joins.mapped(key.Addr().String())
 	}
 	// A new source address for a known session (a roaming player) is just another alias.
 	m.byAddr[key] = s

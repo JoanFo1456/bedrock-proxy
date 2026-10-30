@@ -59,3 +59,6 @@ player, and nothing here depends on RakNet.
   concurrent player. These ports are internal and are never published.
 - `public_ip` is optional. By default players are sent back to the host name or IP they connected with.
 - Only TCP and UDP on the public port need to be open.
+- In mux mode the log pairs each player's name and XUID with their address (`player joined` / `player left`).
+  The address is what the proxy sees: on Docker Desktop for Windows that is Docker's gateway, not the player;
+  on a Linux host it is normally the real IP.

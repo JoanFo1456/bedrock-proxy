@@ -112,6 +112,12 @@ func runServer(ctx context.Context, cfg Config, backendPort int, log *slog.Logge
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "BACKEND_PORT="+port)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	if cfg.PublicTransport == transportMux {
+		tap := func(w io.Writer) io.Writer {
+			return &lineTap{out: w, onLine: func(l string) { handleServerLine(log, l) }}
+		}
+		cmd.Stdout, cmd.Stderr = tap(os.Stdout), tap(os.Stderr)
+	}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return err
