@@ -84,3 +84,90 @@ func TestMuxExampleConfigLoads(t *testing.T) {
 		t.Fatalf("unexpected properties: %v", p)
 	}
 }
+
+func TestEnvModeBuildsTheBedrockSetup(t *testing.T) {
+	t.Setenv("PROXY_COMMAND", "./bedrock_server")
+	t.Setenv("BACKEND_PORT", "")
+	t.Setenv("UDP_PORTS", "")
+	t.Setenv("ALLOW_LIST", "")
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.fromEnv || cfg.PublicTransport != "mux" || cfg.BackendPort != 19140 || cfg.ServerDir != "." ||
+		len(cfg.ServerCommand) != 1 || cfg.ServerCommand[0] != "./bedrock_server" {
+		t.Fatalf("unexpected env config: %+v", cfg)
+	}
+	p := cfg.Properties
+	if p["server-port"] != "{port}" || p["online-mode"] != "true" || p["transport"] != "nethernet" ||
+		p["server-udp-ports"] != "19141-19240" {
+		t.Fatalf("unexpected properties: %v", p)
+	}
+	if _, ok := p["allow-list"]; ok {
+		t.Fatal("allow-list must be left alone when ALLOW_LIST is unset")
+	}
+}
+
+func TestEnvModeOverridesAndSplitsTheCommand(t *testing.T) {
+	t.Setenv("PROXY_COMMAND", "box64 ./bedrock_server")
+	t.Setenv("BACKEND_PORT", "20000")
+	t.Setenv("UDP_PORTS", "30000-30050")
+	t.Setenv("ALLOW_LIST", "false")
+	cfg, err := loadConfig(filepath.Join(t.TempDir(), "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(cfg.ServerCommand, "|") != "box64|./bedrock_server" || cfg.BackendPort != 20000 ||
+		cfg.Properties["server-udp-ports"] != "30000-30050" || cfg.Properties["allow-list"] != "false" {
+		t.Fatalf("unexpected env config: %+v", cfg)
+	}
+}
+
+func TestEnvModeIgnoresConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	os.WriteFile(path, []byte(`{"public_transport": "raknet", "server_command": ["/bin/sh", "-c", "evil"], "backend_port": 1}`), 0o644)
+	t.Setenv("PROXY_COMMAND", "./bedrock_server")
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PublicTransport != "mux" || cfg.ServerCommand[0] != "./bedrock_server" || cfg.BackendPort != 19140 {
+		t.Fatalf("a config.json must be ignored in managed mode: %+v", cfg)
+	}
+}
+
+func TestEnvModeRejectsValuesThatCouldInjectProperties(t *testing.T) {
+	for _, tc := range []struct{ name, value string }{
+		{"UDP_PORTS", "19141-19240\nonline-mode=false"},
+		{"UDP_PORTS", "abc"},
+		{"ALLOW_LIST", "yes"},
+		{"ALLOW_LIST", "false\nonline-mode=false"},
+		{"BACKEND_PORT", "0"},
+		{"BACKEND_PORT", "70000"},
+		{"BACKEND_PORT", "19140\nx=y"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("PROXY_COMMAND", "./bedrock_server")
+			t.Setenv(tc.name, tc.value)
+			if _, err := loadConfig(filepath.Join(t.TempDir(), "config.json")); err == nil {
+				t.Fatalf("%s=%q must be rejected", tc.name, tc.value)
+			}
+		})
+	}
+}
+
+func TestNoEnvModeKeepsTheOldBehaviour(t *testing.T) {
+	t.Setenv("PROXY_COMMAND", "")
+	dir := t.TempDir()
+	cfg, err := loadConfig(filepath.Join(dir, "config.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.fromEnv {
+		t.Fatal("without PROXY_COMMAND the environment must not configure the proxy")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "config.json")); err != nil {
+		t.Fatal("without PROXY_COMMAND a default config.json must still be written")
+	}
+}

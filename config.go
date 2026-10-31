@@ -5,11 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 )
 
-// Config is read from config.json next to the executable. A default one is written on first run.
+// Config is read from config.json next to the executable (a default one is written on first run), unless the
+// environment configures the proxy, see envConfig.
 type Config struct {
+	// fromEnv is set when the settings came from environment variables (managed mode) instead of a config.json.
+	fromEnv bool
 	// Host and Port are where players connect: TCP for NetherNet signaling and UDP for WebRTC, both on Port.
 	// A Port of 0 uses the SERVER_PORT environment variable (set by Pterodactyl), then 19132.
 	Host string  `json:"host"`
@@ -75,7 +80,67 @@ func defaultConfig() Config {
 	}
 }
 
+var (
+	reUDPPorts = regexp.MustCompile(`^[0-9]{1,5}-[0-9]{1,5}$`)
+	reBool     = regexp.MustCompile(`^(true|false)$`)
+)
+
+// envConfig is the managed setup for Bedrock Dedicated Server behind the mux, taken entirely from environment
+// variables so that a panel egg needs no config file. It switches on when PROXY_COMMAND is set, and then any
+// config.json is ignored: what gets executed is decided by the egg, never by a file the player can edit.
+//
+//	PROXY_COMMAND  the command that starts the server, e.g. "./bedrock_server" or "box64 ./bedrock_server"
+//	BACKEND_PORT   the server's internal port (default 19140)
+//	UDP_PORTS      the internal per-player UDP window (default 19141-19240)
+//	ALLOW_LIST     "true" or "false"; when unset the server's own allow-list setting is left alone
+//
+// The public port comes from SERVER_PORT, which the panel sets. Values end up in server.properties, so each one
+// is validated: a stray newline in a variable must not be able to add properties.
+func envConfig() (Config, bool, error) {
+	command := strings.Fields(os.Getenv("PROXY_COMMAND"))
+	if len(command) == 0 {
+		return Config{}, false, nil
+	}
+	cfg := defaultConfig()
+	cfg.PublicTransport = transportMux
+	cfg.ServerDir = "."
+	cfg.ServerCommand = command
+	cfg.fromEnv = true
+
+	cfg.BackendPort = 19140
+	if v := os.Getenv("BACKEND_PORT"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 65535 {
+			return cfg, false, fmt.Errorf("BACKEND_PORT %q is not a port number", v)
+		}
+		cfg.BackendPort = flexInt(n)
+	}
+	udp := "19141-19240"
+	if v := os.Getenv("UDP_PORTS"); v != "" {
+		if !reUDPPorts.MatchString(v) {
+			return cfg, false, fmt.Errorf("UDP_PORTS %q must look like 19141-19240", v)
+		}
+		udp = v
+	}
+	cfg.Properties = map[string]string{
+		"server-port":      "{port}", // the internal port; the panel's allocation stays the public one
+		"online-mode":      "true",
+		"transport":        "nethernet",
+		"server-udp-ports": udp,
+	}
+	if v := os.Getenv("ALLOW_LIST"); v != "" {
+		if !reBool.MatchString(v) {
+			return cfg, false, fmt.Errorf("ALLOW_LIST %q must be true or false", v)
+		}
+		cfg.Properties["allow-list"] = v
+	}
+	return cfg, true, nil
+}
+
 func loadConfig(path string) (Config, error) {
+	if cfg, ok, err := envConfig(); err != nil || ok {
+		return cfg, err
+	}
 	cfg := defaultConfig()
 	b, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {

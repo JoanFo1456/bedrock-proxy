@@ -21,6 +21,9 @@ func main() {
 		os.Exit(1)
 	}
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	if cfg.fromEnv {
+		log.Info("configured from environment variables; config.json is ignored", "command", cfg.ServerCommand)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

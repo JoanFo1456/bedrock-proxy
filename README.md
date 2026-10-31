@@ -62,3 +62,20 @@ player, and nothing here depends on RakNet.
 - In mux mode the log pairs each player's name and XUID with their address (`player joined` / `player left`).
   The address is what the proxy sees: on Docker Desktop for Windows that is Docker's gateway, not the player;
   on a Linux host it is normally the real IP.
+
+## Environment mode (panel eggs, no config.json)
+
+When `PROXY_COMMAND` is set, the proxy configures itself from environment variables for Bedrock Dedicated
+Server behind the mux, and **ignores any `config.json`**, so what gets executed is decided by the egg and never
+by a file a player can edit.
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `PROXY_COMMAND` | command that starts the server, e.g. `./bedrock_server` or `box64 ./bedrock_server` | (required, turns the mode on) |
+| `SERVER_PORT` | the public port; the panel sets it | 19132 |
+| `BACKEND_PORT` | the server's internal port | 19140 |
+| `UDP_PORTS` | internal per-player UDP window | 19141-19240 |
+| `ALLOW_LIST` | `true` or `false`; unset leaves the server's own setting alone | unset |
+
+On every start it sets `server-port`, `online-mode=true`, `transport=nethernet`, `server-udp-ports` (and
+`allow-list` if given) in `server.properties`. Values are validated before they are written.
